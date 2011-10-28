@@ -6,7 +6,7 @@ namespace nji
     using System.IO;
     using System.Linq;
     using System.Net;
-    using Ionic;
+    using SevenZipLib;
     using SimpleJson;
 
     class Program
@@ -88,7 +88,18 @@ namespace nji
         private static void CleanUpDir(string tempDir)
         {
             if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
+            {
+                try
+                {
+                    Directory.Delete(tempDir, true);
+
+                }
+                catch (IOException e)
+                {
+                    Console.WriteLine("Error: {0}", e.Message);
+                    return;
+                }
+            }
         }
 
         private static void Install(string pkg)
@@ -141,9 +152,14 @@ namespace nji
             new WebClient().DownloadFile(url, tmpFilePath);
 
             var workingDir = Environment.CurrentDirectory;
+            var tarFileName = Path.Combine(workingDir, tmpFilePath);
             Environment.CurrentDirectory = tempPkgDir;
 
-            Tar.Extract(Path.Combine(workingDir, tmpFilePath));
+            using (SevenZipArchive archive = new SevenZipArchive(tarFileName))
+            {
+                archive.ExtractAll(".", ExtractOptions.OverwriteExistingFiles);
+            }
+
             Environment.CurrentDirectory = workingDir;
             // getting error when doing move, so copy recursively instead
             CopyDirectory(Path.Combine(tempPkgDir, "package"), destPath, true);
@@ -179,6 +195,7 @@ namespace nji
             }
             catch (Exception ex)
             {
+                Console.WriteLine("Error: {0}", ex.Message);
                 ret = false;
             }
             return ret;
@@ -191,7 +208,7 @@ namespace nji
             {
                 response = new WebClient().DownloadString(url);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 Console.WriteLine("No module named {0} in package registry! Aborting!", pkg);
                 Environment.Exit(-1);
